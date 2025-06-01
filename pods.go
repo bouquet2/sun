@@ -39,8 +39,9 @@ func getContainerLogs(pod *corev1.Pod, containerName string) string {
 		log.Error().Err(err).
 			Str("pod", pod.Name).
 			Str("container", containerName).
+			Err(err).
 			Msg("Failed to fetch container logs")
-		return "Failed to fetch logs"
+		return "Failed to fetch logs, error: " + err.Error()
 	}
 
 	return string(logs)
