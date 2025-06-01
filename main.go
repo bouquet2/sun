@@ -19,6 +19,8 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/leaderelection/resourcelock"
 )
 
 const version = "0.0.2"
@@ -32,6 +34,8 @@ type Config struct {
 
 var config Config
 var client *kubernetes.Clientset
+var isLeader bool
+var leaderLock sync.RWMutex
 
 type Alert struct {
 	Title       string
@@ -347,6 +351,14 @@ func checkPods() {
 }
 
 func sendWebhookMessage(alert Alert) {
+	leaderLock.RLock()
+	if !isLeader {
+		leaderLock.RUnlock()
+		log.Debug().Msg("Not the leader, skipping webhook message")
+		return
+	}
+	leaderLock.RUnlock()
+
 	log.Debug().Str("title", alert.Title).Msg("Sending webhook message")
 
 	// Set color and emoji based on state
@@ -461,6 +473,53 @@ func loadConfig(isReload bool) {
 		Msg("Configuration " + strings.ToLower(action) + "ed")
 }
 
+func runLeaderElection(ctx context.Context) {
+	// Get the pod name from environment variable
+	podName := os.Getenv("POD_NAME")
+	if podName == "" {
+		log.Error().Msg("POD_NAME environment variable not set")
+		return
+	}
+
+	// Create a new lock
+	lock := &resourcelock.LeaseLock{
+		LeaseMeta: metav1.ObjectMeta{
+			Name:      "moniquet-leader",
+			Namespace: config.Namespace,
+		},
+		Client: client.CoordinationV1(),
+		LockConfig: resourcelock.ResourceLockConfig{
+			Identity: podName,
+		},
+	}
+
+	// Start the leader election code loop
+	leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
+		Lock:            lock,
+		ReleaseOnCancel: true,
+		LeaseDuration:   15 * time.Second,
+		RenewDeadline:   10 * time.Second,
+		RetryPeriod:     2 * time.Second,
+		Callbacks: leaderelection.LeaderCallbacks{
+			OnStartedLeading: func(ctx context.Context) {
+				leaderLock.Lock()
+				isLeader = true
+				leaderLock.Unlock()
+				log.Info().Msg("Started leading")
+			},
+			OnStoppedLeading: func() {
+				leaderLock.Lock()
+				isLeader = false
+				leaderLock.Unlock()
+				log.Info().Msg("Stopped leading")
+			},
+			OnNewLeader: func(identity string) {
+				log.Info().Str("leader", identity).Msg("New leader elected")
+			},
+		},
+	})
+}
+
 func main() {
 	// Initialize Viper
 	viper.SetConfigName("config")         // name of config file (without extension)
@@ -498,5 +557,13 @@ func main() {
 	}
 	log.Debug().Msg("Successfully initialized Kubernetes client")
 
+	// Create a context for leader election
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start leader election in a goroutine
+	go runLeaderElection(ctx)
+
+	// Start pod watching
 	checkPods()
 }
