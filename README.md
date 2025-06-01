@@ -7,6 +7,7 @@ Simple and no-BS monitoring tool made for [bouquet2](https://github.com/kreatoo/
 - Discord first
 - No external dependencies
 - Minimal
+- Multiple replica support in-case the monitoring node goes down
 
 ## Installation
 WIP
