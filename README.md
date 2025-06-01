@@ -10,7 +10,7 @@ Simple and no-BS monitoring tool made for [bouquet2](https://github.com/kreatoo/
 - Multiple replica support in-case the monitoring node goes down
 
 ## Installation
-WIP
+Check out [the implementation on bouquet2](https://github.com/kreatoo/bouquet2/tree/main/manifests/core/moniquet).
 
 ## License
 moniquet is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License.
