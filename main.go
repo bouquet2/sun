@@ -349,14 +349,19 @@ func checkPods() {
 func sendWebhookMessage(alert Alert) {
 	log.Debug().Str("title", alert.Title).Msg("Sending webhook message")
 
-	// Set color based on state
+	// Set color and emoji based on state
 	color := 16711680 // Default to red for errors
+	emoji := "🔴"      // Default to red circle for errors
 	for _, field := range alert.Fields {
 		if field.Name == "State" && field.Value == "Running" {
 			color = 65280 // Green for success
+			emoji = "🟢"   // Green circle for success
 			break
 		}
 	}
+
+	// Add emoji to title
+	alert.Title = emoji + " " + alert.Title
 
 	// Convert fields to JSON array
 	fieldsJSON := "["
