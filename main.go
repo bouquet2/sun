@@ -24,7 +24,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 )
 
-const version = "0.0.4"
+const version = "0.0.5"
 
 type Config struct {
 	WebhookUrl string `mapstructure:"webhook_url"`
