@@ -487,7 +487,7 @@ func detectNamespace() string {
 func runLeaderElection(ctx context.Context) {
 	// Ensure namespace is set (only for leader election)
 	namespacePod := detectNamespace()
-	log.Info().Str("namespace", config.Namespace).Msg("Defaulted namespace from POD_NAMESPACE or serviceaccount file (leader election)")
+	log.Info().Str("namespace", namespacePod).Msg("Defaulted namespace from POD_NAMESPACE or serviceaccount file (leader election)")
 
 	// Get the pod name from environment variable
 	podName := os.Getenv("POD_NAME")
