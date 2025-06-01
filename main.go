@@ -381,7 +381,8 @@ func sendWebhookMessage(alert Alert) {
 			"fields": %s,
 			"timestamp": "%s",
 			"footer": {
-				"text": "moniquet v%s"
+				"text": "moniquet v%s",
+				"icon_url": "https://raw.githubusercontent.com/kreatoo/moniquet/refs/heads/main/karpuz.png"
 			}
 		}]
 	}`, alert.Title, alert.Description, color, fieldsJSON, time.Now().Format(time.RFC3339), version)
