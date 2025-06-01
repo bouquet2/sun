@@ -474,6 +474,16 @@ func loadConfig(isReload bool) {
 		Msg("Configuration " + strings.ToLower(action) + "ed")
 }
 
+func detectNamespace() string {
+	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
+		return ns
+	}
+	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		return strings.TrimSpace(string(data))
+	}
+	return "default"
+}
+
 func runLeaderElection(ctx context.Context) {
 	// Get the pod name from environment variable
 	podName := os.Getenv("POD_NAME")
@@ -541,6 +551,12 @@ func main() {
 
 	// Load initial configuration
 	loadConfig(false)
+
+	// --- Namespace fallback logic
+	if config.Namespace == "" {
+		config.Namespace = detectNamespace()
+		log.Info().Str("namespace", config.Namespace).Msg("Defaulted namespace from POD_NAMESPACE or serviceaccount file")
+	}
 
 	// Initialize Kubernetes client
 	var k8sConfig *rest.Config
