@@ -1,14 +1,14 @@
 ![karpuz.png](./karpuz.png)
 
 # moniquet
-Simple and no-BS monitoring tool made for [bouquet2](https://github.com/kreatoo/bouquet2).
+Simple and no-BS monitoring tool made for [bouquet2](https://github.com/kreatoo/bouquet2)
 
-## Features
+## Features
 - Discord first
 - No external dependencies
 - Minimal
 
-## Installation
+## Installation
 WIP
 
 ## License
