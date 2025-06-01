@@ -22,11 +22,15 @@ func shouldSendAlert(alertType string, key string) bool {
 	var state unitState
 	var exists bool
 
-	if alertType == "pod" {
+	switch alertType {
+	case "pod":
 		podStatesLock.RLock()
 		defer podStatesLock.RUnlock()
-
 		state, exists = podStates[key]
+	case "node":
+		nodeStatesLock.RLock()
+		defer nodeStatesLock.RUnlock()
+		state, exists = nodeStates[key]
 	}
 
 	if !exists || !state.hasError || state.alertSent {
@@ -187,6 +191,7 @@ func detectNamespace() string {
 }
 
 func main() {
+	log.Info().Str("version", version).Msg("Starting moniquet")
 	// Initialize Viper
 	viper.SetConfigName("config")         // name of config file (without extension)
 	viper.AddConfigPath(".")              // path to look for the config file in
@@ -238,6 +243,7 @@ func main() {
 	// Start leader election in a goroutine
 	go runLeaderElection(ctx)
 
-	// Start pod watching
+	// Start node and pod watching
+	go checkNodes()
 	checkPods()
 }
