@@ -21,7 +21,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-const version = "0.0.1"
+const version = "0.0.2"
 
 type Config struct {
 	WebhookUrl string `mapstructure:"webhook_url"`
