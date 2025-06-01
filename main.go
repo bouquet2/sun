@@ -18,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -542,12 +543,20 @@ func main() {
 	loadConfig(false)
 
 	// Initialize Kubernetes client
-	kubeconfig := clientcmd.NewDefaultClientConfigLoadingRules().GetDefaultFilename()
-	log.Debug().Str("kubeconfig", kubeconfig).Msg("Loading kubeconfig")
-	k8sConfig, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	var k8sConfig *rest.Config
+	var err error
+
+	// Try to get in-cluster config first
+	k8sConfig, err = rest.InClusterConfig()
 	if err != nil {
-		log.Error().Err(err).Msg("Failed to build kubeconfig")
-		return
+		// Fall back to kubeconfig if not running in cluster
+		kubeconfig := clientcmd.NewDefaultClientConfigLoadingRules().GetDefaultFilename()
+		log.Debug().Str("kubeconfig", kubeconfig).Msg("Loading kubeconfig")
+		k8sConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to build kubeconfig")
+			return
+		}
 	}
 
 	client, err = kubernetes.NewForConfig(k8sConfig)
