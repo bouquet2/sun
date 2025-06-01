@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -193,6 +194,14 @@ func detectNamespace() string {
 }
 
 func main() {
+	// Silence klog for leader election noise
+	flag.Set("v", "0")
+	flag.Set("stderrthreshold", "FATAL")
+	flag.Set("logtostderr", "false")
+	flag.Set("alsologtostderr", "false")
+	klog.InitFlags(nil)
+	klog.SetOutput(io.Discard)
+
 	log.Info().Str("version", version).Msg("Starting moniquet")
 	// Initialize Viper
 	viper.SetConfigName("config")         // name of config file (without extension)
