@@ -1,0 +1,16 @@
+# Discord webhook URL for sending alerts
+# Can also be set via WEBHOOK_URL environment variable
+webhook_url: "https://discord.com/api/webhooks/your-webhook-url"
+
+# Kubernetes namespace to monitor
+# Defaults to all namespaces if empty (default)
+namespace: ""
+
+# Log level (debug, info, warn, error)
+# Defaults to "info" if not specified
+log_level: "info"
+
+# Alert interval in minutes
+# Set to 0 to send alerts immediately
+# Defaults to 3 if not specified
+interval: 3 
