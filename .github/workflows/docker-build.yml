@@ -2,9 +2,14 @@ name: ci
 
 on:
   push:
+    tags:
+      - 'v*'
+  
 
 env:
-  REGISTRY_IMAGE: user/app
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  REGISTRY_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ github.repository }}
 
 jobs:
   build:
