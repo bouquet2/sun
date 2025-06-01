@@ -485,6 +485,10 @@ func detectNamespace() string {
 }
 
 func runLeaderElection(ctx context.Context) {
+	// Ensure namespace is set (only for leader election)
+	namespacePod := detectNamespace()
+	log.Info().Str("namespace", config.Namespace).Msg("Defaulted namespace from POD_NAMESPACE or serviceaccount file (leader election)")
+
 	// Get the pod name from environment variable
 	podName := os.Getenv("POD_NAME")
 	if podName == "" {
@@ -496,7 +500,7 @@ func runLeaderElection(ctx context.Context) {
 	lock := &resourcelock.LeaseLock{
 		LeaseMeta: metav1.ObjectMeta{
 			Name:      "moniquet-leader",
-			Namespace: config.Namespace,
+			Namespace: namespacePod,
 		},
 		Client: client.CoordinationV1(),
 		LockConfig: resourcelock.ResourceLockConfig{
@@ -551,12 +555,6 @@ func main() {
 
 	// Load initial configuration
 	loadConfig(false)
-
-	// --- Namespace fallback logic
-	if config.Namespace == "" {
-		config.Namespace = detectNamespace()
-		log.Info().Str("namespace", config.Namespace).Msg("Defaulted namespace from POD_NAMESPACE or serviceaccount file")
-	}
 
 	// Initialize Kubernetes client
 	var k8sConfig *rest.Config
