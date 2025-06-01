@@ -195,12 +195,10 @@ func detectNamespace() string {
 
 func main() {
 	// Silence klog for leader election noise
-	flag.Set("v", "0")
-	flag.Set("stderrthreshold", "FATAL")
+	klog.InitFlags(nil)
 	flag.Set("logtostderr", "false")
 	flag.Set("alsologtostderr", "false")
-	klog.InitFlags(nil)
-	klog.SetOutput(io.Discard)
+	flag.Parse()
 
 	log.Info().Str("version", version).Msg("Starting moniquet")
 	// Initialize Viper
