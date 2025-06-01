@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
@@ -414,22 +416,18 @@ func sendWebhookMessage(alert Alert) {
 	}
 }
 
-func main() {
-	// Initialize Viper
-	viper.SetConfigName("config")         // name of config file (without extension)
-	viper.AddConfigPath(".")              // path to look for the config file in
-	viper.SetConfigType("yaml")           // type of the config file
-	viper.SetDefault("log_level", "info") // Set default log level to info
-	viper.SetDefault("interval", 3)       // Set default interval to 3 minutes
+func loadConfig(isReload bool) {
+	action := "Loading"
+	if isReload {
+		action = "Reloading"
+	}
+	log.Info().Msg(action + " configuration...")
 
 	// Read the configuration file
 	if err := viper.ReadInConfig(); err != nil {
 		log.Error().Err(err).Msg("Error reading config file")
 		return
 	}
-
-	// Human friendly logging
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().Caller().Logger()
 
 	// Unmarshal the configuration into a Config struct
 	if err := viper.Unmarshal(&config); err != nil {
@@ -445,11 +443,33 @@ func main() {
 	}
 	zerolog.SetGlobalLevel(level)
 
-	log.Debug().
+	log.Info().
 		Str("namespace", config.Namespace).
 		Str("log_level", config.LogLevel).
 		Int("interval", config.Interval).
-		Msg("Configuration loaded")
+		Msg("Configuration " + strings.ToLower(action) + "ed")
+}
+
+func main() {
+	// Initialize Viper
+	viper.SetConfigName("config")         // name of config file (without extension)
+	viper.AddConfigPath(".")              // path to look for the config file in
+	viper.SetConfigType("yaml")           // type of the config file
+	viper.SetDefault("log_level", "info") // Set default log level to info
+	viper.SetDefault("interval", 3)       // Set default interval to 3 minutes
+
+	// Enable config watching
+	viper.WatchConfig()
+	viper.OnConfigChange(func(e fsnotify.Event) {
+		log.Info().Str("file", e.Name).Msg("Config file changed")
+		loadConfig(true)
+	})
+
+	// Human friendly logging
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().Caller().Logger()
+
+	// Load initial configuration
+	loadConfig(false)
 
 	// Initialize Kubernetes client
 	kubeconfig := clientcmd.NewDefaultClientConfigLoadingRules().GetDefaultFilename()
