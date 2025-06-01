@@ -143,9 +143,9 @@ func sendWebhookMessage(alert Alert) {
 }
 
 func loadConfig(isReload bool) {
-	action := "Loading"
+	action := "Load"
 	if isReload {
-		action = "Reloading"
+		action = "Reload"
 	}
 	log.Info().Msg(action + " configuration...")
 
