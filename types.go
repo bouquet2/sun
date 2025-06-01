@@ -7,7 +7,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-const version = "0.0.7"
+const version = "0.0.8"
 
 var isLeader bool
 var leaderLock sync.RWMutex
