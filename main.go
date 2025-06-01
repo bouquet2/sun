@@ -435,6 +435,12 @@ func loadConfig(isReload bool) {
 		return
 	}
 
+	// Check for WEBHOOK_URL environment variable
+	if webhookUrl := os.Getenv("WEBHOOK_URL"); webhookUrl != "" {
+		config.WebhookUrl = webhookUrl
+		log.Info().Msg("Using webhook URL from environment variable")
+	}
+
 	// Set log level based on configuration
 	level, err := zerolog.ParseLevel(config.LogLevel)
 	if err != nil {
