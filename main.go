@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 )
 
 func shouldSendAlert(alertType string, key string) bool {
@@ -208,6 +210,9 @@ func main() {
 
 	// Human friendly logging
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().Caller().Logger()
+
+	// Silence klog (e.g. client-go and controller-runtime internal logs)
+	klog.SetOutput(io.Discard)
 
 	// Load initial configuration
 	loadConfig(false)
