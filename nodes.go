@@ -1,15 +1,12 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"time"
 
 	log "github.com/rs/zerolog/log"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
 )
 
 var (
@@ -25,17 +22,6 @@ func markNodeAlertSent(nodeKey string) {
 		state.alertSent = true
 		nodeStates[nodeKey] = state
 	}
-}
-
-func setupNodeWatcher() (watch.Interface, error) {
-	log.Debug().Msg("Starting node watch (cluster-wide)")
-	watcher, err := client.CoreV1().Nodes().Watch(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to watch nodes")
-		return nil, err
-	}
-	log.Debug().Msg("Successfully started node watch")
-	return watcher, nil
 }
 
 func getNodeCondition(node *corev1.Node, condType corev1.NodeConditionType) *corev1.NodeCondition {
@@ -172,24 +158,4 @@ func processNodeStatus(node *corev1.Node) (bool, string) {
 	}
 
 	return hasError, errorMessage
-}
-
-func checkNodes() {
-	watcher, err := setupNodeWatcher()
-	if err != nil {
-		return
-	}
-	for event := range watcher.ResultChan() {
-		log.Debug().Str("event_type", string(event.Type)).Msg("Received node event")
-		node, ok := event.Object.(*corev1.Node)
-		if !ok {
-			log.Error().Msg("Received non-node object in node watch")
-			continue
-		}
-		log.Debug().
-			Str("node", node.Name).
-			Msg("Processing node status")
-		hasError, errorMessage := processNodeStatus(node)
-		updateNodeState(node, hasError, errorMessage)
-	}
 }

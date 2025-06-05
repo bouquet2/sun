@@ -8,25 +8,12 @@ import (
 
 	log "github.com/rs/zerolog/log"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
 )
 
 var (
 	podStates     = make(map[string]unitState)
 	podStatesLock sync.RWMutex
 )
-
-func setupPodWatcher() (watch.Interface, error) {
-	log.Debug().Str("namespace", config.Namespace).Msg("Starting pod watch")
-	watcher, err := client.CoreV1().Pods(config.Namespace).Watch(context.Background(), metav1.ListOptions{})
-	if err != nil {
-		log.Error().Err(err).Msg("Failed to watch pods")
-		return nil, err
-	}
-	log.Debug().Msg("Successfully started pod watch")
-	return watcher, nil
-}
 
 func getContainerLogs(pod *corev1.Pod, containerName string) string {
 	req := client.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &corev1.PodLogOptions{
@@ -241,38 +228,4 @@ func processContainerStatus(pod *corev1.Pod, container corev1.ContainerStatus) (
 	}
 
 	return hasError, errorMessage
-}
-
-func checkPods() {
-	watcher, err := setupPodWatcher()
-	if err != nil {
-		return
-	}
-
-	for event := range watcher.ResultChan() {
-		log.Debug().Str("event_type", string(event.Type)).Msg("Received pod event")
-		pod, ok := event.Object.(*corev1.Pod)
-		if !ok {
-			log.Error().Msg("Received non-pod object in watch")
-			continue
-		}
-		log.Debug().
-			Str("pod", pod.Name).
-			Str("namespace", pod.Namespace).
-			Str("phase", string(pod.Status.Phase)).
-			Msg("Processing pod status")
-
-		hasError := false
-		var errorMessage string
-
-		for _, container := range pod.Status.ContainerStatuses {
-			containerHasError, containerErrorMessage := processContainerStatus(pod, container)
-			if containerHasError {
-				hasError = true
-				errorMessage = containerErrorMessage
-			}
-		}
-
-		updatePodState(pod, hasError, errorMessage)
-	}
 }

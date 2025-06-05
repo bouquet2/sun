@@ -8,15 +8,20 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 )
@@ -201,6 +206,11 @@ func main() {
 	flag.Parse()
 
 	log.Info().Str("version", version).Msg("Starting moniquet")
+
+	// Create context that cancels on OS signals for graceful shutdown
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
 	// Initialize Viper
 	viper.SetConfigName("config")         // name of config file (without extension)
 	viper.AddConfigPath(".")              // path to look for the config file in
@@ -248,14 +258,83 @@ func main() {
 	}
 	log.Debug().Msg("Successfully initialized Kubernetes client")
 
-	// Create a context for leader election
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	// Start leader election in a goroutine
 	go runLeaderElection(ctx)
 
-	// Start node and pod watching
-	go checkNodes()
-	checkPods()
+	// Create SharedInformerFactory
+	factory := informers.NewSharedInformerFactoryWithOptions(client, 0, informers.WithNamespace(config.Namespace))
+
+	// Set up pod informer
+	podInformer := factory.Core().V1().Pods().Informer()
+	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    handlePod,
+		UpdateFunc: func(_, obj interface{}) { handlePod(obj) },
+	})
+
+	// Set up node informer (cluster-wide)
+	nodeInformer := factory.Core().V1().Nodes().Informer()
+	nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    handleNode,
+		UpdateFunc: func(_, obj interface{}) { handleNode(obj) },
+	})
+
+	// Start informers
+	log.Info().Msg("Starting SharedInformerFactory")
+	go factory.Start(ctx.Done())
+
+	// Wait for cache sync
+	log.Info().Msg("Waiting for informer caches to sync")
+	if !cache.WaitForCacheSync(ctx.Done(), podInformer.HasSynced, nodeInformer.HasSynced) {
+		log.Error().Msg("Failed to sync informer caches")
+		return
+	}
+	log.Info().Msg("Informer caches synced successfully")
+
+	// Block until context is cancelled (signal received)
+	<-ctx.Done()
+	log.Info().Msg("Shutting down moniquet")
+}
+
+// handlePod processes pod events from the informer
+func handlePod(obj interface{}) {
+	pod, ok := obj.(*corev1.Pod)
+	if !ok {
+		log.Error().Msg("Received non-pod object in pod informer")
+		return
+	}
+
+	log.Debug().
+		Str("pod", pod.Name).
+		Str("namespace", pod.Namespace).
+		Str("phase", string(pod.Status.Phase)).
+		Msg("Processing pod status")
+
+	hasError := false
+	var errorMessage string
+
+	for _, container := range pod.Status.ContainerStatuses {
+		containerHasError, containerErrorMessage := processContainerStatus(pod, container)
+		if containerHasError {
+			hasError = true
+			errorMessage = containerErrorMessage
+		}
+	}
+
+	updatePodState(pod, hasError, errorMessage)
+}
+
+// handleNode processes node events from the informer
+func handleNode(obj interface{}) {
+	node, ok := obj.(*corev1.Node)
+	if !ok {
+		log.Error().Msg("Received non-node object in node informer")
+		return
+	}
+
+	log.Debug().
+		Str("node", node.Name).
+		Msg("Processing node status")
+
+	hasError, errorMessage := processNodeStatus(node)
+	updateNodeState(node, hasError, errorMessage)
 }
