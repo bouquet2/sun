@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -185,6 +186,8 @@ func loadConfig(isReload bool) {
 		Str("namespace", config.Namespace).
 		Str("log_level", config.LogLevel).
 		Int("interval", config.Interval).
+		Bool("longhorn_enabled", config.Longhorn.Enabled).
+		Str("longhorn_namespace", config.Longhorn.Namespace).
 		Msg("Configuration " + strings.ToLower(action) + "ed")
 }
 
@@ -218,6 +221,18 @@ func main() {
 	viper.SetDefault("log_level", "info") // Set default log level to info
 	viper.SetDefault("interval", 3)       // Set default interval to 3 minutes
 
+	// Set Longhorn defaults
+	viper.SetDefault("longhorn.enabled", false)
+	viper.SetDefault("longhorn.namespace", "longhorn-system")
+	viper.SetDefault("longhorn.monitor.volumes", true)
+	viper.SetDefault("longhorn.monitor.replicas", true)
+	viper.SetDefault("longhorn.monitor.engines", true)
+	viper.SetDefault("longhorn.monitor.nodes", true)
+	viper.SetDefault("longhorn.monitor.backups", true)
+	viper.SetDefault("longhorn.alert_thresholds.volume_usage_percent", 85.0)
+	viper.SetDefault("longhorn.alert_thresholds.volume_capacity_critical", 1073741824)
+	viper.SetDefault("longhorn.alert_thresholds.replica_failure_count", 1)
+
 	// Enable config watching
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
@@ -237,11 +252,13 @@ func main() {
 	// Initialize Kubernetes client
 	var k8sConfig *rest.Config
 	var err error
+	var runningInCluster bool
 
 	// Try to get in-cluster config first
 	k8sConfig, err = rest.InClusterConfig()
 	if err != nil {
 		// Fall back to kubeconfig if not running in cluster
+		runningInCluster = false
 		kubeconfig := clientcmd.NewDefaultClientConfigLoadingRules().GetDefaultFilename()
 		log.Debug().Str("kubeconfig", kubeconfig).Msg("Loading kubeconfig")
 		k8sConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
@@ -249,6 +266,8 @@ func main() {
 			log.Error().Err(err).Msg("Failed to build kubeconfig")
 			return
 		}
+	} else {
+		runningInCluster = true
 	}
 
 	client, err = kubernetes.NewForConfig(k8sConfig)
@@ -258,8 +277,25 @@ func main() {
 	}
 	log.Debug().Msg("Successfully initialized Kubernetes client")
 
-	// Start leader election in a goroutine
-	go runLeaderElection(ctx)
+	// Initialize dynamic client for Longhorn CRDs
+	dynamicClient, err = dynamic.NewForConfig(k8sConfig)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to create dynamic client")
+		return
+	}
+	log.Debug().Msg("Successfully initialized dynamic client")
+
+	// Start leader election only if running in cluster
+	if runningInCluster {
+		log.Info().Msg("Running in cluster, starting leader election")
+		go runLeaderElection(ctx)
+	} else {
+		log.Info().Msg("Running outside cluster, skipping leader election and assuming leadership")
+		// Set as leader immediately when not in cluster
+		leaderLock.Lock()
+		isLeader = true
+		leaderLock.Unlock()
+	}
 
 	// Create SharedInformerFactory
 	factory := informers.NewSharedInformerFactoryWithOptions(client, 0, informers.WithNamespace(config.Namespace))
@@ -289,6 +325,15 @@ func main() {
 		return
 	}
 	log.Info().Msg("Informer caches synced successfully")
+
+	// Setup Longhorn monitoring if enabled
+	if config.Longhorn.Enabled {
+		err = setupLonghornInformers(ctx)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to setup Longhorn informers")
+			// Don't exit, continue with pod/node monitoring
+		}
+	}
 
 	// Block until context is cancelled (signal received)
 	<-ctx.Done()

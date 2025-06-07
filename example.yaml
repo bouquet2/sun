@@ -13,4 +13,31 @@ log_level: "info"
 # Alert interval in minutes
 # Set to 0 to send alerts immediately
 # Defaults to 3 if not specified
-interval: 3 
+interval: 3
+
+# Longhorn storage monitoring configuration
+longhorn:
+  # Enable/disable Longhorn monitoring
+  enabled: true
+  
+  # Longhorn namespace (usually "longhorn-system")
+  namespace: "longhorn-system"
+  
+  # Enable monitoring for different resource types
+  monitor:
+    volumes: true
+    replicas: true
+    engines: true
+    nodes: true
+    backups: true
+  
+  # Alert thresholds
+  alert_thresholds:
+    # Volume usage percentage threshold (0-100)
+    volume_usage_percent: 85.0
+    
+    # Critical remaining capacity in bytes (1GB = 1073741824)
+    volume_capacity_critical: 1073741824
+    
+    # Number of replica failures before alerting
+    replica_failure_count: 1 
