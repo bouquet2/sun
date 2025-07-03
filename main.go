@@ -40,6 +40,13 @@ func shouldSendAlert(alertType string, key string) bool {
 		nodeStatesLock.RLock()
 		defer nodeStatesLock.RUnlock()
 		state, exists = nodeStates[key]
+	case "node_resource":
+		nodeResourceStatesLock.RLock()
+		defer nodeResourceStatesLock.RUnlock()
+		if nodeState, ok := nodeResourceStates[key]; ok {
+			state = nodeState.unitState
+			exists = true
+		}
 	}
 
 	if !exists || !state.hasError || state.alertSent {
@@ -186,6 +193,8 @@ func loadConfig(isReload bool) {
 		Str("namespace", config.Namespace).
 		Str("log_level", config.LogLevel).
 		Int("interval", config.Interval).
+		Bool("node_monitoring_enabled", config.NodeMonitoring.Enabled).
+		Float64("cpu_threshold_percent", config.NodeMonitoring.CPUThresholdPercent).
 		Bool("longhorn_enabled", config.Longhorn.Enabled).
 		Str("longhorn_namespace", config.Longhorn.Namespace).
 		Msg("Configuration " + strings.ToLower(action) + "ed")
@@ -208,8 +217,6 @@ func main() {
 	flag.Set("alsologtostderr", "false")
 	flag.Parse()
 
-	log.Info().Str("version", version).Msg("Starting moniquet")
-
 	// Create context that cancels on OS signals for graceful shutdown
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -220,6 +227,10 @@ func main() {
 	viper.SetConfigType("yaml")           // type of the config file
 	viper.SetDefault("log_level", "info") // Set default log level to info
 	viper.SetDefault("interval", 3)       // Set default interval to 3 minutes
+
+	// Set node monitoring defaults
+	viper.SetDefault("node_monitoring.enabled", true)
+	viper.SetDefault("node_monitoring.cpu_threshold_percent", 80.0)
 
 	// Set Longhorn defaults
 	viper.SetDefault("longhorn.enabled", false)
@@ -242,6 +253,8 @@ func main() {
 
 	// Human friendly logging
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().Caller().Logger()
+
+	log.Info().Str("version", version).Msg("Starting moniquet")
 
 	// Silence klog (e.g. client-go and controller-runtime internal logs)
 	klog.SetOutput(io.Discard)
@@ -382,4 +395,7 @@ func handleNode(obj interface{}) {
 
 	hasError, errorMessage := processNodeStatus(node)
 	updateNodeState(node, hasError, errorMessage)
+
+	// Also check resource usage if node monitoring is enabled
+	processNodeResourceUsage(node.Name)
 }

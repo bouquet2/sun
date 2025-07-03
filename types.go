@@ -22,8 +22,16 @@ type Config struct {
 	LogLevel   string `mapstructure:"log_level"`
 	Interval   int    `mapstructure:"interval"` // Interval in minutes
 
+	// Node monitoring configuration
+	NodeMonitoring NodeMonitoringConfig `mapstructure:"node_monitoring"`
+
 	// Longhorn configuration
 	Longhorn LonghornConfig `mapstructure:"longhorn"`
+}
+
+type NodeMonitoringConfig struct {
+	Enabled             bool    `mapstructure:"enabled"`               // Default: true
+	CPUThresholdPercent float64 `mapstructure:"cpu_threshold_percent"` // Default: 80%
 }
 
 type LonghornConfig struct {
@@ -77,6 +85,15 @@ type longhornUnitState struct {
 	namespace    string
 }
 
+// Node-specific state for resource monitoring
+type nodeResourceState struct {
+	unitState
+	cpuCapacity     int64
+	cpuRequests     int64
+	cpuUsagePercent float64
+	nodeName        string
+}
+
 // Longhorn state maps
 var (
 	longhornVolumeStates  = make(map[string]longhornUnitState)
@@ -90,4 +107,8 @@ var (
 	longhornEngineStatesLock  sync.RWMutex
 	longhornNodeStatesLock    sync.RWMutex
 	longhornBackupStatesLock  sync.RWMutex
+
+	// Node resource monitoring state
+	nodeResourceStates     = make(map[string]nodeResourceState)
+	nodeResourceStatesLock sync.RWMutex
 )

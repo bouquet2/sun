@@ -15,6 +15,17 @@ log_level: "info"
 # Defaults to 3 if not specified
 interval: 3
 
+# Node resource monitoring configuration
+node_monitoring:
+  # Enable/disable node resource monitoring
+  # Defaults to true if not specified
+  enabled: true
+  
+  # CPU usage threshold percentage (0-100)
+  # Alert when node CPU requests exceed this percentage of allocatable CPU
+  # Defaults to 80.0 if not specified
+  cpu_threshold_percent: 80.0
+
 # Longhorn storage monitoring configuration
 longhorn:
   # Enable/disable Longhorn monitoring

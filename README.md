@@ -1,4 +1,4 @@
-![karpuz.png](./karpuz.png)
+![melon.png](./melon.png)
 
 # moniquet
 Simple and no-BS monitoring tool made for [bouquet2](https://github.com/kreatoo/bouquet2)
@@ -11,6 +11,8 @@ Simple and no-BS monitoring tool made for [bouquet2](https://github.com/kreatoo/
 - Comprehensive monitoring capabilities, including (but not limited to);
   - Pods
   - Nodes
+    - Health conditions (Ready, MemoryPressure, DiskPressure)
+    - CPU usage monitoring with configurable thresholds
   - Longhorn
     - Volumes
     - Replicas
