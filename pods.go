@@ -34,6 +34,34 @@ func getContainerLogs(pod *corev1.Pod, containerName string) string {
 	return string(logs)
 }
 
+// shouldFilterContainerStatus checks if a container status should be filtered based on denylist
+func shouldFilterContainerStatus(container corev1.ContainerStatus) bool {
+	// Check if the container state reason is in the denylist
+	var reason string
+
+	if container.State.Waiting != nil {
+		reason = container.State.Waiting.Reason
+	} else if container.State.Terminated != nil {
+		reason = container.State.Terminated.Reason
+	}
+
+	if reason == "" {
+		return false
+	}
+
+	// Check if this reason is in the denylist
+	for _, deniedKind := range config.ResourceMonitoring.Denylist.Kinds {
+		if reason == deniedKind {
+			log.Debug().
+				Str("reason", reason).
+				Msg("Container status filtered out by resource monitoring denylist")
+			return true
+		}
+	}
+
+	return false
+}
+
 func handleTerminatedContainer(pod *corev1.Pod, container corev1.ContainerStatus) {
 	containerLogs := getContainerLogs(pod, container.Name)
 
@@ -194,6 +222,17 @@ func processContainerStatus(pod *corev1.Pod, container corev1.ContainerStatus) (
 		Str("container", container.Name).
 		Str("state", fmt.Sprintf("%+v", container.State)).
 		Msg("Checking container status")
+
+	// Check if resource monitoring is enabled
+	if !config.ResourceMonitoring.Enabled {
+		log.Debug().Msg("Resource monitoring is disabled, skipping container status processing")
+		return false, ""
+	}
+
+	// Check if this container status should be filtered
+	if shouldFilterContainerStatus(container) {
+		return false, ""
+	}
 
 	hasError := false
 	var errorMessage string

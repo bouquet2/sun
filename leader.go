@@ -26,7 +26,7 @@ func runLeaderElection(ctx context.Context) {
 	// Create a new lock
 	lock := &resourcelock.LeaseLock{
 		LeaseMeta: metav1.ObjectMeta{
-			Name:      "moniquet-leader",
+			Name:      "sun-leader",
 			Namespace: namespacePod,
 		},
 		Client: client.CoordinationV1(),

@@ -15,6 +15,75 @@ log_level: "info"
 # Defaults to 3 if not specified
 interval: 3
 
+# Resource monitoring configuration
+resource_monitoring:
+  # Enable/disable resource monitoring
+  # Defaults to true if not specified
+  enabled: true
+
+  denylist:
+    # List of resource kinds to ignore
+    # Defaults to empty list if not specified
+    kinds: ["CrashLoopBackOff", "ImagePullBackOff", "Evicted"]
+
+# Resource monitoring configuration
+gitops:
+  # Enable/disable GitOps monitoring
+  # Defaults to false if not specified
+  enabled: true
+
+  # Enable/disable alerting on GitOps mismatches
+  alert_on_mismatch: true
+
+  # Global sync interval in minutes (how often to check repositories)
+  # Defaults to 5 minutes if not specified
+  # Can be overridden per repository
+  sync_interval_minutes: 5
+
+  auto_fix:
+    # Enable/disable automatic fixing of GitOps mismatches
+    # Defaults to false if not specified
+    enabled: false
+    
+    # List of resource kinds to auto-fix
+    # Defaults to empty list if not specified
+    kinds: []
+
+  allowlist:
+    # List of namespaces to monitor for GitOps
+    # Defaults to all if not specified
+    namespaces: []
+    
+    # List of resource kinds to monitor for GitOps
+    # Defaults to empty list if not specified
+    kinds: []
+
+  denylist:
+    # List of namespaces to ignore for GitOps monitoring
+    # Defaults to empty list if not specified
+    namespaces: []
+    
+    # List of resource kinds to ignore for GitOps monitoring
+    # Defaults to empty list if not specified
+    kinds: []
+
+  # List of repositories to monitor
+  repositories:
+    - name: "example-repo"
+      url: ""
+      # Path to the manifest files in the repository (relative to the root)
+      path: "."
+      branch: "main"
+      alert_on_mismatch: true
+      auto_fix: false
+      # Repository-specific sync interval in minutes (optional)
+      # If not specified, uses the global sync_interval_minutes setting
+      # sync_interval_minutes: 10
+      kustomize:
+        helmCommand: "helm"      # Default: "helm", change if your helm binary has a different name
+        copyEnvExample: true     # Default: false, copies .env.example to .env if .env.example exists
+
+
 # Node resource monitoring configuration
 node_monitoring:
   # Enable/disable node resource monitoring

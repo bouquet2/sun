@@ -4,11 +4,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-git/go-git/v5"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 )
 
-const version = "0.0.12"
+const version = "0.1.0"
 
 var isLeader bool
 var leaderLock sync.RWMutex
@@ -22,11 +23,26 @@ type Config struct {
 	LogLevel   string `mapstructure:"log_level"`
 	Interval   int    `mapstructure:"interval"` // Interval in minutes
 
+	// Resource monitoring configuration
+	ResourceMonitoring ResourceMonitoringConfig `mapstructure:"resource_monitoring"`
+
 	// Node monitoring configuration
 	NodeMonitoring NodeMonitoringConfig `mapstructure:"node_monitoring"`
 
 	// Longhorn configuration
 	Longhorn LonghornConfig `mapstructure:"longhorn"`
+
+	// GitOps configuration
+	GitOps GitOpsConfig `mapstructure:"gitops"`
+}
+
+type ResourceMonitoringConfig struct {
+	Enabled  bool                       `mapstructure:"enabled"` // Default: true
+	Denylist ResourceMonitoringDenylist `mapstructure:"denylist"`
+}
+
+type ResourceMonitoringDenylist struct {
+	Kinds []string `mapstructure:"kinds"` // Default: empty list
 }
 
 type NodeMonitoringConfig struct {
@@ -53,6 +69,42 @@ type LonghornThresholds struct {
 	VolumeUsagePercent     float64 `mapstructure:"volume_usage_percent"`     // Default: 85%
 	VolumeCapacityCritical int64   `mapstructure:"volume_capacity_critical"` // Default: 1GB remaining
 	ReplicaFailureCount    int     `mapstructure:"replica_failure_count"`    // Default: 1
+}
+
+type GitOpsConfig struct {
+	Enabled             bool               `mapstructure:"enabled"`               // Default: false
+	AlertOnMismatch     bool               `mapstructure:"alert_on_mismatch"`     // Default: true
+	SyncIntervalMinutes int                `mapstructure:"sync_interval_minutes"` // Default: 5 minutes
+	AutoFix             GitOpsAutoFix      `mapstructure:"auto_fix"`
+	Allowlist           GitOpsFilter       `mapstructure:"allowlist"`
+	Denylist            GitOpsFilter       `mapstructure:"denylist"`
+	Repositories        []GitOpsRepository `mapstructure:"repositories"`
+}
+
+type GitOpsAutoFix struct {
+	Enabled bool     `mapstructure:"enabled"` // Default: false
+	Kinds   []string `mapstructure:"kinds"`   // Default: empty list
+}
+
+type GitOpsFilter struct {
+	Namespaces []string `mapstructure:"namespaces"` // Default: empty list
+	Kinds      []string `mapstructure:"kinds"`      // Default: empty list
+}
+
+type GitOpsRepository struct {
+	Name                string                `mapstructure:"name"`
+	URL                 string                `mapstructure:"url"`
+	Path                string                `mapstructure:"path"`                  // Default: "."
+	Branch              string                `mapstructure:"branch"`                // Default: "main"
+	AlertOnMismatch     bool                  `mapstructure:"alert_on_mismatch"`     // Default: true
+	AutoFix             bool                  `mapstructure:"auto_fix"`              // Default: false
+	SyncIntervalMinutes int                   `mapstructure:"sync_interval_minutes"` // Default: use global setting
+	Kustomize           GitOpsKustomizeConfig `mapstructure:"kustomize"`
+}
+
+type GitOpsKustomizeConfig struct {
+	HelmCommand    string `mapstructure:"helmCommand"`    // Default: "helm"
+	CopyEnvExample bool   `mapstructure:"copyEnvExample"` // Default: false
 }
 
 type Alert struct {
@@ -94,6 +146,31 @@ type nodeResourceState struct {
 	nodeName        string
 }
 
+// GitOps-specific state
+type gitOpsState struct {
+	unitState
+	repositoryName string
+	resourceKind   string
+	resourceName   string
+	namespace      string
+	mismatchType   string // "missing", "different", "extra"
+	expectedHash   string
+	actualHash     string
+}
+
+type gitOpsRepositoryState struct {
+	name         string
+	url          string
+	path         string
+	branch       string
+	localPath    string
+	repository   *git.Repository
+	lastSync     time.Time
+	lastCommit   string
+	syncInterval time.Duration
+	mutex        sync.RWMutex
+}
+
 // Longhorn state maps
 var (
 	longhornVolumeStates  = make(map[string]longhornUnitState)
@@ -111,4 +188,8 @@ var (
 	// Node resource monitoring state
 	nodeResourceStates     = make(map[string]nodeResourceState)
 	nodeResourceStatesLock sync.RWMutex
+
+	// GitOps state maps
+	gitOpsStates     = make(map[string]gitOpsState)
+	gitOpsStatesLock sync.RWMutex
 )

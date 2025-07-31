@@ -47,6 +47,13 @@ func shouldSendAlert(alertType string, key string) bool {
 			state = nodeState.unitState
 			exists = true
 		}
+	case "gitops":
+		gitOpsStatesLock.RLock()
+		defer gitOpsStatesLock.RUnlock()
+		if gitOpsState, ok := gitOpsStates[key]; ok {
+			state = gitOpsState.unitState
+			exists = true
+		}
 	}
 
 	if !exists || !state.hasError || state.alertSent {
@@ -123,8 +130,8 @@ func sendWebhookMessage(alert Alert) {
 			"fields": %s,
 			"timestamp": "%s",
 			"footer": {
-				"text": "moniquet v%s",
-				"icon_url": "https://raw.githubusercontent.com/kreatoo/moniquet/refs/heads/main/karpuz.png"
+				"text": "sun v%s",
+				"icon_url": "https://raw.githubusercontent.com/kreatoo/sun/refs/heads/main/karpuz.png"
 			}
 		}]
 	}`, alert.Title, alert.Description, color, fieldsJSON, time.Now().Format(time.RFC3339), version)
@@ -193,10 +200,17 @@ func loadConfig(isReload bool) {
 		Str("namespace", config.Namespace).
 		Str("log_level", config.LogLevel).
 		Int("interval", config.Interval).
+		Bool("resource_monitoring_enabled", config.ResourceMonitoring.Enabled).
+		Int("resource_monitoring_denylist_kinds_count", len(config.ResourceMonitoring.Denylist.Kinds)).
 		Bool("node_monitoring_enabled", config.NodeMonitoring.Enabled).
 		Float64("cpu_threshold_percent", config.NodeMonitoring.CPUThresholdPercent).
 		Bool("longhorn_enabled", config.Longhorn.Enabled).
 		Str("longhorn_namespace", config.Longhorn.Namespace).
+		Bool("gitops_enabled", config.GitOps.Enabled).
+		Bool("gitops_alert_on_mismatch", config.GitOps.AlertOnMismatch).
+		Int("gitops_sync_interval_minutes", config.GitOps.SyncIntervalMinutes).
+		Bool("gitops_auto_fix_enabled", config.GitOps.AutoFix.Enabled).
+		Int("gitops_repositories_count", len(config.GitOps.Repositories)).
 		Msg("Configuration " + strings.ToLower(action) + "ed")
 }
 
@@ -228,6 +242,10 @@ func main() {
 	viper.SetDefault("log_level", "info") // Set default log level to info
 	viper.SetDefault("interval", 3)       // Set default interval to 3 minutes
 
+	// Set resource monitoring defaults
+	viper.SetDefault("resource_monitoring.enabled", true)
+	viper.SetDefault("resource_monitoring.denylist.kinds", []string{})
+
 	// Set node monitoring defaults
 	viper.SetDefault("node_monitoring.enabled", true)
 	viper.SetDefault("node_monitoring.cpu_threshold_percent", 80.0)
@@ -244,6 +262,15 @@ func main() {
 	viper.SetDefault("longhorn.alert_thresholds.volume_capacity_critical", 1073741824)
 	viper.SetDefault("longhorn.alert_thresholds.replica_failure_count", 1)
 
+	// Set GitOps defaults
+	viper.SetDefault("gitops.enabled", false)
+	viper.SetDefault("gitops.alert_on_mismatch", true)
+	viper.SetDefault("gitops.sync_interval_minutes", 5)
+	viper.SetDefault("gitops.auto_fix.enabled", false)
+
+	// Set default Kustomize options for all repositories
+	viper.SetDefault("gitops.repositories.kustomize.copyEnvExample", false)
+
 	// Enable config watching
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
@@ -254,7 +281,14 @@ func main() {
 	// Human friendly logging
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().Caller().Logger()
 
-	log.Info().Str("version", version).Msg("Starting moniquet")
+	fmt.Println(`
+  ________ __  ____
+ /  ___/  |  \/    \
+ \___ \|  |  /   |  \
+/____  >____/|___|  /
+     \/           \/`)
+
+	log.Info().Str("version", version).Msg("Starting sun")
 
 	// Silence klog (e.g. client-go and controller-runtime internal logs)
 	klog.SetOutput(io.Discard)
@@ -348,9 +382,18 @@ func main() {
 		}
 	}
 
+	// Setup GitOps monitoring if enabled
+	if config.GitOps.Enabled {
+		err = setupGitOpsMonitoring(ctx)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to setup GitOps monitoring")
+			// Don't exit, continue with other monitoring
+		}
+	}
+
 	// Block until context is cancelled (signal received)
 	<-ctx.Done()
-	log.Info().Msg("Shutting down moniquet")
+	log.Info().Msg("Shutting down sun")
 }
 
 // handlePod processes pod events from the informer
