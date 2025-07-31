@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	log "github.com/rs/zerolog/log"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -37,6 +38,14 @@ func generateKustomizeManifests(repoState *gitOpsRepositoryState) ([]*unstructur
 		Str("repository", repoState.name).
 		Str("path", kustomizePath).
 		Msg("Generating Kustomize manifests")
+
+	// Clean up any existing Helm chart directories to prevent conflicts
+	if err := cleanupHelmCharts(kustomizePath, repoState.name); err != nil {
+		log.Warn().
+			Err(err).
+			Str("repository", repoState.name).
+			Msg("Failed to cleanup Helm charts, continuing anyway")
+	}
 
 	// Get Helm command if configured
 	helmCommand := repoConfig.Kustomize.HelmCommand
@@ -268,6 +277,75 @@ func copyEnvExampleFiles(rootPath, repositoryName string) error {
 			Int("copied", copiedCount).
 			Int("skipped", skippedCount).
 			Msg("Processed .env.example files")
+	}
+
+	return err
+}
+
+// cleanupHelmCharts removes Helm chart directories that may cause conflicts on subsequent runs
+func cleanupHelmCharts(rootPath, repositoryName string) error {
+	log.Debug().
+		Str("repository", repositoryName).
+		Str("path", rootPath).
+		Msg("Cleaning up Helm chart directories")
+
+	cleanedCount := 0
+
+	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip if not a directory
+		if !info.IsDir() {
+			return nil
+		}
+
+		// Look for directories that contain Helm charts (typically named "charts")
+		if info.Name() == "charts" {
+			// Check if this is a Helm charts directory by looking for .tgz files or chart directories
+			entries, err := os.ReadDir(path)
+			if err != nil {
+				return nil // Skip this directory if we can't read it
+			}
+
+			hasHelmContent := false
+			for _, entry := range entries {
+				if entry.IsDir() || strings.HasSuffix(entry.Name(), ".tgz") {
+					hasHelmContent = true
+					break
+				}
+			}
+
+			if hasHelmContent {
+				log.Debug().
+					Str("repository", repositoryName).
+					Str("chartsPath", path).
+					Msg("Removing Helm charts directory")
+
+				if err := os.RemoveAll(path); err != nil {
+					log.Warn().
+						Err(err).
+						Str("repository", repositoryName).
+						Str("chartsPath", path).
+						Msg("Failed to remove Helm charts directory")
+				} else {
+					cleanedCount++
+				}
+
+				// Skip walking into this directory since we removed it
+				return filepath.SkipDir
+			}
+		}
+
+		return nil
+	})
+
+	if cleanedCount > 0 {
+		log.Debug().
+			Str("repository", repositoryName).
+			Int("cleaned", cleanedCount).
+			Msg("Cleaned up Helm chart directories")
 	}
 
 	return err
