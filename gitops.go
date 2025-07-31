@@ -183,10 +183,37 @@ func syncRepository(repoState *gitOpsRepositoryState) error {
 			SingleBranch:  true,
 		})
 		if err != nil && err != git.NoErrAlreadyUpToDate {
-			return fmt.Errorf("failed to pull repository %s: %w", repoState.name, err)
-		}
+			log.Warn().
+				Err(err).
+				Str("repository", repoState.name).
+				Msg("Failed to pull repository, attempting to re-clone")
 
-		if err == git.NoErrAlreadyUpToDate {
+			// Remove the corrupted local repository
+			if err := os.RemoveAll(repoState.localPath); err != nil {
+				log.Warn().
+					Err(err).
+					Str("repository", repoState.name).
+					Str("localPath", repoState.localPath).
+					Msg("Failed to remove corrupted repository directory")
+			}
+
+			// Reset repository state and re-clone
+			repoState.repository = nil
+			repo, err := git.PlainClone(repoState.localPath, false, &git.CloneOptions{
+				URL:           repoState.url,
+				ReferenceName: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", repoState.branch)),
+				SingleBranch:  true,
+				Depth:         1, // Shallow clone for efficiency
+			})
+			if err != nil {
+				return fmt.Errorf("failed to re-clone repository %s after pull failure: %w", repoState.name, err)
+			}
+
+			repoState.repository = repo
+			log.Info().
+				Str("repository", repoState.name).
+				Msg("Repository re-cloned successfully after pull failure")
+		} else if err == git.NoErrAlreadyUpToDate {
 			log.Debug().Str("repository", repoState.name).Msg("Repository already up to date")
 		} else {
 			log.Debug().Str("repository", repoState.name).Msg("Repository updated")
