@@ -131,7 +131,7 @@ func sendWebhookMessage(alert Alert) {
 			"timestamp": "%s",
 			"footer": {
 				"text": "sun v%s",
-				"icon_url": "https://raw.githubusercontent.com/kreatoo/sun/refs/heads/main/karpuz.png"
+				"icon_url": "https://avatars.githubusercontent.com/u/221393700"
 			}
 		}]
 	}`, alert.Title, alert.Description, color, fieldsJSON, time.Now().Format(time.RFC3339), version)
