@@ -24,7 +24,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Install dependencies including Helm
-RUN apk add --no-cache ca-certificates curl bash && \
+RUN apk add --no-cache ca-certificates curl bash openssl && \
     curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && \
     chmod 700 get_helm.sh && \
     ./get_helm.sh && \
