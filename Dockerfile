@@ -24,11 +24,12 @@ FROM alpine:latest
 WORKDIR /app
 
 # Install dependencies including Helm
-RUN apk add --no-cache ca-certificates curl && \
+RUN apk add --no-cache ca-certificates curl bash && \
     curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 && \
     chmod 700 get_helm.sh && \
     ./get_helm.sh && \
-    rm get_helm.sh
+    rm get_helm.sh && \
+    apk del bash
 
 # Create non-root user
 RUN adduser -D -g '' sun
