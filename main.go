@@ -95,7 +95,8 @@ func sendWebhookMessage(alert Alert) {
 	color := 16711680 // Default to red for errors
 	emoji := "🔴"      // Default to red circle for errors
 	for _, field := range alert.Fields {
-		if field.Name == "State" && field.Value == "Running" {
+		if (field.Name == "State" && (field.Value == "Running" || field.Value == "Completed")) ||
+			(field.Name == "Status" && field.Value == "✅ In Sync") {
 			color = 65280 // Green for success
 			emoji = "🟢"   // Green circle for success
 			break
