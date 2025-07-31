@@ -182,6 +182,24 @@ func loadConfig(isReload bool) {
 		return
 	}
 
+	// Apply defaults for GitOps repository settings
+	// Since we can't distinguish between explicitly set false and default false,
+	// we'll use a different approach: check the raw config to see if alert_on_mismatch was set
+	for i := range config.GitOps.Repositories {
+		repo := &config.GitOps.Repositories[i]
+
+		// Check if alert_on_mismatch was explicitly set for this repository
+		repoKey := fmt.Sprintf("gitops.repositories.%d.alert_on_mismatch", i)
+		if !viper.IsSet(repoKey) {
+			// Not explicitly set, use global default
+			repo.AlertOnMismatch = config.GitOps.AlertOnMismatch
+			log.Debug().
+				Str("repository", repo.Name).
+				Bool("alertOnMismatch", repo.AlertOnMismatch).
+				Msg("Applied global AlertOnMismatch default for repository")
+		}
+	}
+
 	// Check for WEBHOOK_URL environment variable
 	if webhookUrl := os.Getenv("WEBHOOK_URL"); webhookUrl != "" {
 		config.WebhookUrl = webhookUrl
