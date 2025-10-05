@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/go-git/go-git/v5 v5.16.2
+	github.com/go-git/go-git/v5 v5.16.3
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/viper v1.20.1
 	k8s.io/api v0.33.4
