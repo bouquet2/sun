@@ -1,7 +1,7 @@
 # ☀ sun
 > Who would win, Kubernetes or the unmatched power of the sun?
 
-Simple and no-BS monitoring tool made for [bouquet2](https://github.com/kreatoo/bouquet2)
+Simple and no-BS monitoring tool made for [bouquet2](https://github.com/bouquet2/bouquet2)
 
 ## Features
 - Discord first
@@ -25,7 +25,7 @@ Simple and no-BS monitoring tool made for [bouquet2](https://github.com/kreatoo/
     - Auto-fix mismatches (Unimplemented)
 
 ## Installation
-Check out [the implementation on bouquet2](https://github.com/kreatoo/bouquet2/tree/main/manifests/core/sun).
+Check out [the implementation on bouquet2](https://github.com/bouquet2/bouquet2/tree/main/manifests/core/sun).
 
 ### Environment Variables
 - `WEBHOOK_URL`: Discord webhook URL (overrides config file)
