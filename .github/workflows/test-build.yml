@@ -8,6 +8,9 @@ on:
 
 jobs:
   call-common:
+    permissions:
+      contents: read
+      packages: write
     uses: ./.github/workflows/common.yml
     with:
       run-docker: true
