@@ -3,7 +3,7 @@ module github.com/kreatoo/sun
 go 1.24.3
 
 require (
-	github.com/fsnotify/fsnotify v1.9.0
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v5 v5.16.3
 	github.com/rs/zerolog v1.34.0
 	github.com/spf13/viper v1.21.0
